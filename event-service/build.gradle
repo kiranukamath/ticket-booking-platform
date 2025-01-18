@@ -1,0 +1,10 @@
+dependencies {
+    implementation project(':common')  // Import the common module
+
+    // Auth-specific dependencies
+}
+
+bootJar {
+    // Remove this block from the `event-service` module
+    // mainClass = 'org.ticketbooking.TicketBookingPlatformApplication'
+}

@@ -1,22 +1,22 @@
 server:
   port: 8007
 
-# spring:
-#   datasource:
-#     url: jdbc:postgresql://localhost:5432/ticketbooking
-#     username: yourusername
-#     password: yourpassword
-#     driver-class-name: org.postgresql.Driver
-#     hikari:
-#       maximum-pool-size: 10
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ticketbooking
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
 
-#   jpa:
-#     hibernate:
-#       ddl-auto: update
-#     show-sql: true
-#     properties:
-#       hibernate:
-#         format_sql: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
 #   kafka:
 #     consumer:

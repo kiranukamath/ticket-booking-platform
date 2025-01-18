@@ -1,0 +1,9 @@
+dependencies {
+    implementation project(':common')  // Import the common module
+
+    // Auth-specific dependencies
+}
+
+bootJar {
+    mainClass = 'org.ticketbooking.auth.Main' // Replace with your actual main class
+}
