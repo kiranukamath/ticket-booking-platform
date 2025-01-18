@@ -1,3 +1,9 @@
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)  // Ensure it's set to Java 21
+    }
+}
+
 dependencies {
     implementation project(':common')  // Import the common module
 

@@ -1,6 +1,11 @@
 plugins {
     id 'java'
 }
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)  // Ensure it's set to Java 21
+    }
+}
 
 dependencies {
     // No Spring Boot dependency in common module

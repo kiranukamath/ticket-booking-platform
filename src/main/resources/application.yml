@@ -9,6 +9,8 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
+    # schema: classpath:schema.sql
+    # data: classpath:data.sql
 
   jpa:
     hibernate:
@@ -28,8 +30,9 @@ spring:
 # Log settings
 logging:
   level:
-    org.springframework.web: INFO
+    org.springframework.web: DEBUG
     org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
 
 # Security settings (e.g., JWT, etc.)
 security:

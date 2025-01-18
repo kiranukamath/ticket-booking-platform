@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-TicketBookingPlatformApplication<ticket-booking-platform>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "org.ticketbooking.TicketBookingPlatformApplication",
+            "projectName": "ticket-booking-platform",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env",
+            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=50516 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=ticket-booking-platform"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-Main<auth-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "org.ticketbooking.auth.Main",
+            "projectName": "auth-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

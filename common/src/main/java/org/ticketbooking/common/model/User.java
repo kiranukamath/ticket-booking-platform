@@ -1,16 +1,22 @@
 package org.ticketbooking.common.model;
 
+import java.time.LocalDateTime;
+
+import org.hibernate.annotations.CreationTimestamp;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "users")
+@Table(name = "ticket_user")
 public class User {
 
     @Id
@@ -26,6 +32,11 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
-    private String roles;
+    @ManyToOne
+    @JoinColumn(name = "role_id")
+    private Role role;
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
 }
