@@ -11,7 +11,7 @@ import org.ticketbooking.common.repository.RoleRepository;
 import org.ticketbooking.common.repository.UserRepository;
 
 @Service
-public class UserService {
+public class UserService{
     @Autowired
     private UserRepository userRepository;
 
@@ -34,15 +34,15 @@ public class UserService {
     public String authenticate(String username, String password) throws CommonException {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        // if (userOptional.isPresent()) {
-        //     user = userOptional.get();
-        // } else {
-        //     return "Invalid Credentials";
-        // }
         if (passwordEncoder.matches(password, user.getPassword())) {
             return jwtUtil.generateToken(username);
         } else {
             throw new CommonException("Invalid credentials","400");
         }
+    }
+
+    public User loadUserByUsername(String username) throws UsernameNotFoundException {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 }

@@ -37,6 +37,6 @@ logging:
 # Security settings (e.g., JWT, etc.)
 security:
   jwt:
-    secret-key: kiran
+    secret-key: kiran12345678910111213141516171819202122232425
     expiration-time: 3600000 # 1 hour
 
