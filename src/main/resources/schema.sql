@@ -31,11 +31,15 @@ CREATE TABLE event (
 
 
 -- Create Ticket Table
-CREATE TABLE IF NOT EXISTS ticket (
-    id SERIAL PRIMARY KEY,
-    event_id INT REFERENCES event(id),
+CREATE TABLE ticket (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    event_id BIGINT NOT NULL,
+    booking_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, CONFIRMED, CANCELLED
     price DECIMAL(10, 2) NOT NULL,
-    available INT NOT NULL
+    FOREIGN KEY (user_id) REFERENCES ticket_user(id),
+    FOREIGN KEY (event_id) REFERENCES event(id)
 );
 
 -- Create Booking Table

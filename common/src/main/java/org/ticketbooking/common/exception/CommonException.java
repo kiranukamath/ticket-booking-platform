@@ -15,6 +15,10 @@ public class CommonException extends Exception{
         super();
     }
 
+    public CommonException(String details){
+        super(details);
+    }
+
     public CommonException(String details, String code){
         super(details);
         this.code = code;

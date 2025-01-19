@@ -74,7 +74,7 @@ dependencies {
 
     implementation project(':auth-service')
     implementation project(':event-service')
-
+    implementation project(':booking-service')
 }
 
 tasks.withType(JavaCompile) {
