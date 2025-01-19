@@ -15,16 +15,20 @@ CREATE TABLE IF NOT EXISTS ticket_user (
 );
 
 -- Create Event Table
-CREATE TABLE IF NOT EXISTS event (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+CREATE TABLE event (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
-    location VARCHAR(200),
-    start_time TIMESTAMP NOT NULL,
-    end_time TIMESTAMP,
-    created_by INT REFERENCES ticket_user(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    location VARCHAR(255),
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    capacity INT NOT NULL,
+    available_seats INT NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    booking_open BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
 
 -- Create Ticket Table
 CREATE TABLE IF NOT EXISTS ticket (

@@ -1,3 +1,9 @@
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)  // Ensure it's set to Java 21
+    }
+}
+
 dependencies {
     implementation project(':common')  // Import the common module
 
@@ -5,6 +11,5 @@ dependencies {
 }
 
 bootJar {
-    // Remove this block from the `event-service` module
-    // mainClass = 'org.ticketbooking.TicketBookingPlatformApplication'
+    mainClass = 'org.ticketbooking.event.Main' // Replace with your actual main class
 }
