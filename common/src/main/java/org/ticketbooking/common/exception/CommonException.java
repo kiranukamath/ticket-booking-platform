@@ -1,4 +1,6 @@
-package org.ticketbooking.common.model;
+package org.ticketbooking.common.exception;
+
+import org.springframework.http.HttpStatus;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -16,5 +18,10 @@ public class CommonException extends Exception{
     public CommonException(String details, String code){
         super(details);
         this.code = code;
+    }
+
+    public CommonException(String details, HttpStatus status) {
+        super(details);
+        this.code = String.valueOf(status);
     }
 }

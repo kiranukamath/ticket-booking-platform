@@ -1,4 +1,4 @@
-package org.ticketbooking.common.model;
+package org.ticketbooking.common.exception;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;

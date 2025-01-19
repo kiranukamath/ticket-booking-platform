@@ -1,4 +1,4 @@
-package org.ticketbooking.common.model;
+package org.ticketbooking.common.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
