@@ -20,12 +20,22 @@ spring:
       hibernate:
         format_sql: true
 
-#   kafka:
-#     consumer:
-#       group-id: ticket-booking-group
-#       auto-offset-reset: earliest
-#     producer:
-#       bootstrap-servers: localhost:9092
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: bookingGroup
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
 
 # Log settings
 logging:

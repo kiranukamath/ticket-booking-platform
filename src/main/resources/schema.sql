@@ -29,34 +29,3 @@ CREATE TABLE event (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-
--- Create Ticket Table
-CREATE TABLE ticket (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    event_id BIGINT NOT NULL,
-    booking_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, CONFIRMED, CANCELLED
-    price DECIMAL(10, 2) NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES ticket_user(id),
-    FOREIGN KEY (event_id) REFERENCES event(id)
-);
-
--- Create Booking Table
-CREATE TABLE IF NOT EXISTS booking (
-    id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES ticket_user(id),
-    ticket_id INT REFERENCES ticket(id),
-    quantity INT NOT NULL,
-    total_price DECIMAL(10, 2) NOT NULL,
-    booking_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create Payment Table
-CREATE TABLE IF NOT EXISTS payment (
-    id SERIAL PRIMARY KEY,
-    booking_id INT REFERENCES booking(id),
-    amount DECIMAL(10, 2) NOT NULL,
-    payment_status VARCHAR(20) NOT NULL,
-    payment_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);

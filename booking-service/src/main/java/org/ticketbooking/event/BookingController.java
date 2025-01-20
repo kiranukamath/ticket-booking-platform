@@ -24,7 +24,7 @@ public class BookingController {
 
     @PostMapping
     public ResponseEntity<?> bookTicket(@RequestBody BookingRequest bookingRequest) throws CommonException {
-        BookingResponse bookingResponse = bookingService.bookTicket(bookingRequest);
+        BookingResponse bookingResponse = bookingService.initiateBooking(bookingRequest);
         return ResponseEntity.ok(bookingResponse);
     }
 
@@ -34,9 +34,9 @@ public class BookingController {
         return ResponseEntity.ok("Ticket cancelled successfully");
     }
 
-    @GetMapping("/{userId}")
-    public ResponseEntity<List<BookingResponse>> getBookings(@PathVariable Long userId) {
-        List<BookingResponse> bookings = bookingService.getUserBookings(userId);
+    @GetMapping
+    public ResponseEntity<List<BookingResponse>> getBookings() throws CommonException {
+        List<BookingResponse> bookings = bookingService.getUserBookings();
         return ResponseEntity.ok(bookings);
     }
 }

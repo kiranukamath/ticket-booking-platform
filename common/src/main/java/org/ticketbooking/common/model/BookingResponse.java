@@ -8,10 +8,12 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class BookingResponse {
+    
     private Long bookingId;
     private Long userId;
     private Long eventId;
     private String status;
     private BigDecimal price;
     private int quantity;
+    private String bookingRef;
 }

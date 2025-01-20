@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.exception.CommonException;
@@ -16,8 +17,17 @@ public class EventService {
     @Autowired
     private EventRepository eventRepository;
 
+    @Autowired
+    private RedisTemplate<String, String> redisTemplate;
+
     public Event createEvent(Event event) {
-        return eventRepository.save(event);
+        Event savedEvent = eventRepository.save(event);
+
+        // Set initial available seats in Redis
+        String eventKey = "event:" + savedEvent.getId() + ":availability";
+        redisTemplate.opsForValue().set(eventKey, String.valueOf(savedEvent.getAvailableSeats()));
+
+        return savedEvent;
     }
 
     public List<Event> getAllEvents() {
@@ -45,7 +55,13 @@ public class EventService {
             event.setCapacity(updatedEvent.getCapacity());
             event.setAvailableSeats(updatedEvent.getAvailableSeats());
             event.setPrice(updatedEvent.getPrice());
-            return eventRepository.save(event);
+            Event savedEvent = eventRepository.save(event);
+
+            // Update available seats in Redis
+            String eventKey = "event:" + savedEvent.getId() + ":availability";
+            redisTemplate.opsForValue().set(eventKey, String.valueOf(savedEvent.getAvailableSeats()));
+
+            return savedEvent;
         }).orElseThrow(() -> new CommonException("Event not found",HttpStatus.NOT_FOUND));
     }
 
