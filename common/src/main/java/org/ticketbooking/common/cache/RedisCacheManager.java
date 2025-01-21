@@ -33,6 +33,7 @@ public class RedisCacheManager {
     }
 
     // Distributed Lock
+    @SuppressWarnings("null")
     public boolean tryLock(String lockKey, String lockValue, long ttl, TimeUnit timeUnit) {
         return redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, ttl, timeUnit);
     }
