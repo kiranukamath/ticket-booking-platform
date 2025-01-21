@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.model.BookingRequest;
-import org.ticketbooking.common.model.BookingResponse;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,14 +27,15 @@ public class BookingConsumer {
             log.error("ERROR" + message, ex);
         }
         
-        try {
-            if(request != null){
-                BookingResponse response = bookingService.bookTicket(request);
+        if (request != null) {
+            try {
+                bookingService.bookTicket(request);
                 // Redirect to mock payment service
                 bookingService.redirectToPayment(request);
+            } catch (Exception e) {
+                log.error("ERROR",e);
+                bookingService.handleOverbooking(request);
             }
-        } catch (Exception e) {
-            bookingService.handleOverbooking(request);
         }
     }
 }

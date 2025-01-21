@@ -77,38 +77,25 @@ public class BookingService {
                 null, request.getQuantity(), bookingRef);
     }
 
-    @Transactional
+    
     @Retryable(
         value = { OptimisticLockingFailureException.class }, // Specify the exception to retry on
         maxAttempts = 3, // Max number of retries
         backoff = @Backoff(delay = 500, multiplier = 2) // Exponential backoff: delay starts at 1s, multiplies by 2 each retry
     )
+    @Transactional
     public BookingResponse bookTicket(BookingRequest request) throws CommonException {
+        Event event = validateEvent(request.getEventId(), request.getQuantity());
 
-        Ticket savedTicket = null;
-        // int maxRetries = 3;
-        // int retryCount = 0;
-        // while (retryCount < maxRetries) {
-        //     try {
-                Event event = validateEvent(request.getEventId(), request.getQuantity());
+        Ticket ticket = createTicket(event, request.getQuantity(), request.getUser(), request.getBookingRef());
 
-                Ticket ticket = createTicket(event, request.getQuantity(), request.getUser(), request.getBookingRef());
+        // Save the booking details
+        eventRepository.save(event);
+        Ticket savedTicket = ticketRepository.save(ticket);
 
-                // Save the booking details
-                eventRepository.save(event);
-                savedTicket = ticketRepository.save(ticket);
-
-                return new BookingResponse(savedTicket.getId(), savedTicket.getUser().getId(), savedTicket.getId(),
-                        savedTicket.getStatus(), savedTicket.getPrice(), savedTicket.getQuantity(),
-                        savedTicket.getBookingRef());
-            // } catch (OptimisticLockingFailureException e) {
-            //     retryCount++;
-            //     if (retryCount == maxRetries) {
-            //         throw new CommonException("Failed to book ticket after multiple retries", HttpStatus.CONFLICT);
-            //     }
-            // }
-        // }
-        // throw new CommonException("Failed to book ticket", HttpStatus.CONFLICT);
+        return new BookingResponse(savedTicket.getId(), savedTicket.getUser().getId(), savedTicket.getId(),
+                savedTicket.getStatus(), savedTicket.getPrice(), savedTicket.getQuantity(),
+                savedTicket.getBookingRef());
     }
 
     public void redirectToPayment(BookingRequest request) throws CommonException {
@@ -223,7 +210,7 @@ public class BookingService {
 
     public void handleOverbooking(BookingRequest request) {
         // Logic to reject or manage overbooked requests
-        // TODO:: notifyUser(request.getUser().getId(), "Sorry, the event is fully booked.");
+        notifyUser(request.getUser().getId(), "Sorry, the event is fully booked.");
     }
 
 }
