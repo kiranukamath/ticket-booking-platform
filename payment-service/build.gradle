@@ -1,5 +1,0 @@
-dependencies {
-    implementation project(':common')  // Import the common module
-
-    // Auth-specific dependencies
-}

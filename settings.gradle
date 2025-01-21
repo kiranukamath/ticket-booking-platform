@@ -4,4 +4,4 @@ plugins {
 }
 
 rootProject.name = 'ticket-booking-platform'
-include 'common', 'auth-service', 'event-service', 'booking-service', 'payment-service', 'notification-service'
+include 'common', 'auth-service', 'event-service', 'booking-service'
