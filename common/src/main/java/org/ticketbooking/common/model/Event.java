@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.Data;
 
 @Entity
@@ -37,5 +38,6 @@ public class Event {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
-    
+    @Version
+    private Long version; // Optimistic lock version field
 }

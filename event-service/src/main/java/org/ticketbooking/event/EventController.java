@@ -32,10 +32,8 @@ public class EventController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Event> getEventById(@PathVariable Long id) {
-        return eventService.getEventById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Event> getEventById(@PathVariable Long id) throws CommonException {
+        return ResponseEntity.ok(eventService.getEventById(id));
     }
 
     @PutMapping("/updateEvent/{id}")

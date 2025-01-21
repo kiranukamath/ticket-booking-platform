@@ -7,10 +7,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
 import org.ticketbooking.common.model.BookingRequest;
 import org.ticketbooking.common.model.BookingResponse;
@@ -18,6 +21,7 @@ import org.ticketbooking.common.model.CustomUserDetails;
 import org.ticketbooking.common.model.Event;
 import org.ticketbooking.common.model.Ticket;
 import org.ticketbooking.common.model.User;
+import org.ticketbooking.common.model.Utils;
 import org.ticketbooking.common.repository.EventRepository;
 import org.ticketbooking.common.repository.TicketRepository;
 
@@ -36,7 +40,10 @@ public class BookingService {
     private BookingProducer bookingProducer;
 
     @Autowired
-    private RedisTemplate<String, String> redisTemplate;
+    RedisCacheManager cache;
+
+    @Autowired
+    Utils utils;
 
     public User getAuthenticatedUser() throws CommonException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -45,34 +52,20 @@ public class BookingService {
         }
         throw new CommonException("User not authenticated");
     }
-    public int getAvailableSeats(Long eventId) throws CommonException {
-        String eventKey = "event:" + eventId + ":availability";
-        String availableSeats = redisTemplate.opsForValue().get(eventKey);
-    
-        if (availableSeats == null) {
-            // Fallback to database and set Redis key
-            Event event = eventRepository.findById(eventId)
-                    .orElseThrow(() -> new CommonException("Event not found"));
-            redisTemplate.opsForValue().set(eventKey, String.valueOf(event.getAvailableSeats()));
-            return event.getAvailableSeats();
-        }
-    
-        return Integer.parseInt(availableSeats);
-    }
 
     public BookingResponse initiateBooking(BookingRequest request) throws CommonException {
         String bookingRef = UUID.randomUUID().toString();
         User user = getAuthenticatedUser();
 
         String eventKey = "event:" + request.getEventId() + ":availability";
-        int availableSeats = getAvailableSeats(request.getEventId());
+        int availableSeats = utils.getAvailableSeats(request.getEventId());
 
         if (availableSeats < request.getQuantity()) {
             throw new CommonException("Not enough seats available");
         }
 
         // Temporarily reserve tickets in Redis
-        redisTemplate.opsForValue().decrement(eventKey, request.getQuantity());
+        cache.decrement(eventKey, request.getQuantity());
 
         // Send booking request to Kafka
         request.setBookingRef(bookingRef);
@@ -85,19 +78,37 @@ public class BookingService {
     }
 
     @Transactional
+    @Retryable(
+        value = { OptimisticLockingFailureException.class }, // Specify the exception to retry on
+        maxAttempts = 3, // Max number of retries
+        backoff = @Backoff(delay = 500, multiplier = 2) // Exponential backoff: delay starts at 1s, multiplies by 2 each retry
+    )
     public BookingResponse bookTicket(BookingRequest request) throws CommonException {
-        
-        Event event = validateEvent(request.getEventId(),request.getQuantity());
 
-        Ticket ticket = createTicket(event,request.getQuantity(),request.getUser(),request.getBookingRef());
+        Ticket savedTicket = null;
+        // int maxRetries = 3;
+        // int retryCount = 0;
+        // while (retryCount < maxRetries) {
+        //     try {
+                Event event = validateEvent(request.getEventId(), request.getQuantity());
 
-        // Save the booking details
-        eventRepository.save(event);
-        Ticket savedTicket = ticketRepository.save(ticket);
+                Ticket ticket = createTicket(event, request.getQuantity(), request.getUser(), request.getBookingRef());
 
-        // Prepare and return response
-        return new BookingResponse(savedTicket.getId(), ticket.getUser().getId(), event.getId(),
-                ticket.getStatus(), ticket.getPrice(), ticket.getQuantity(), ticket.getBookingRef());
+                // Save the booking details
+                eventRepository.save(event);
+                savedTicket = ticketRepository.save(ticket);
+
+                return new BookingResponse(savedTicket.getId(), savedTicket.getUser().getId(), savedTicket.getId(),
+                        savedTicket.getStatus(), savedTicket.getPrice(), savedTicket.getQuantity(),
+                        savedTicket.getBookingRef());
+            // } catch (OptimisticLockingFailureException e) {
+            //     retryCount++;
+            //     if (retryCount == maxRetries) {
+            //         throw new CommonException("Failed to book ticket after multiple retries", HttpStatus.CONFLICT);
+            //     }
+            // }
+        // }
+        // throw new CommonException("Failed to book ticket", HttpStatus.CONFLICT);
     }
 
     public void redirectToPayment(BookingRequest request) throws CommonException {
@@ -131,7 +142,7 @@ public class BookingService {
                 .orElseThrow(() -> new CommonException("Booking not found"));
         
         String eventKey = "event:" + ticket.getEvent().getId() + ":availability";
-        redisTemplate.opsForValue().increment(eventKey, ticket.getQuantity());
+        cache.increment(eventKey, ticket.getQuantity());
 
         ticket.setStatus("CANCELLED");
         ticketRepository.save(ticket);
@@ -189,7 +200,7 @@ public class BookingService {
         String eventKey = "event:" + event.getId() + ":availability";
 
         // Increment available seats in Redis
-        redisTemplate.opsForValue().increment(eventKey, ticket.getQuantity());
+        cache.increment(eventKey, ticket.getQuantity());
 
         // Increase the available seats in the event
         event.setAvailableSeats(event.getAvailableSeats() + ticket.getQuantity()); // Assuming 1 ticket cancellation per request

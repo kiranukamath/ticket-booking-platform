@@ -1,14 +1,15 @@
 package org.ticketbooking.event;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
 import org.ticketbooking.common.model.Event;
+import org.ticketbooking.common.model.Utils;
 import org.ticketbooking.common.repository.EventRepository;
 
 @Service
@@ -18,14 +19,19 @@ public class EventService {
     private EventRepository eventRepository;
 
     @Autowired
-    private RedisTemplate<String, String> redisTemplate;
+    RedisCacheManager cache;
+
+    @Autowired
+    Utils utils;
 
     public Event createEvent(Event event) {
         Event savedEvent = eventRepository.save(event);
 
         // Set initial available seats in Redis
         String eventKey = "event:" + savedEvent.getId() + ":availability";
-        redisTemplate.opsForValue().set(eventKey, String.valueOf(savedEvent.getAvailableSeats()));
+
+        long ttl = utils.calculateTTLForEvent(savedEvent);
+        cache.setWithTTL(eventKey, String.valueOf(savedEvent.getAvailableSeats()), ttl, TimeUnit.SECONDS);
 
         return savedEvent;
     }
@@ -34,8 +40,9 @@ public class EventService {
         return eventRepository.findAll();
     }
 
-    public Optional<Event> getEventById(Long id) {
-        return eventRepository.findById(id);
+    public Event getEventById(Long id) throws CommonException {
+        return eventRepository.findById(id)
+                    .orElseThrow(() -> new CommonException("Event not found"));
     }
 
     public Event updateEvent(Long id, Event updatedEvent) throws CommonException {
@@ -59,7 +66,8 @@ public class EventService {
 
             // Update available seats in Redis
             String eventKey = "event:" + savedEvent.getId() + ":availability";
-            redisTemplate.opsForValue().set(eventKey, String.valueOf(savedEvent.getAvailableSeats()));
+            long ttl = utils.calculateTTLForEvent(savedEvent);
+            cache.setWithTTL(eventKey, String.valueOf(savedEvent.getAvailableSeats()), ttl, TimeUnit.SECONDS);
 
             return savedEvent;
         }).orElseThrow(() -> new CommonException("Event not found",HttpStatus.NOT_FOUND));
