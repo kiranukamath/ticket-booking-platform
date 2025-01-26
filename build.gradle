@@ -53,6 +53,9 @@ subprojects {
 
         // Test Dependencies
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+        implementation 'org.springframework.retry:spring-retry'
+        implementation 'org.springframework:spring-aspects'
     }
 }
 
@@ -71,6 +74,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    implementation 'org.springframework.retry:spring-retry'
+    implementation 'org.springframework:spring-aspects'
+    
     implementation project(':auth-service')
     implementation project(':event-service')
     implementation project(':booking-service')
