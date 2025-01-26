@@ -24,7 +24,8 @@ public class SecurityConfig {
         // Disable CSRF for simplicity (for stateless apps such as JWT)
         return http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                        .requestMatchers("/api/auth/**").permitAll() // Open access to authentication endpoints
+                        // .requestMatchers("/api/auth/**").permitAll() // Open access to authentication endpoints
+                        .requestMatchers("/static/**", "/index.html","/api/auth/**").permitAll() // Allow access to static resources
                         // .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // .requestMatchers("/api/user/**").hasRole("USER")
                         .anyRequest().authenticated() // All other requests require authentication
