@@ -1,6 +1,7 @@
 package org.ticketbooking.event;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -37,8 +38,8 @@ public class EventController {
     }
 
     @PutMapping("/updateEvent/{id}")
-    public ResponseEntity<Event> updateEvent(@PathVariable Long id, @RequestBody Event event) throws CommonException {
-        return ResponseEntity.ok(eventService.updateEvent(id, event));
+    public ResponseEntity<Event> updateEvent(@PathVariable Long id, @RequestBody Map<String,Object> requestBody) throws CommonException {
+        return ResponseEntity.ok(eventService.updateEvent(id, requestBody));
     }
 
     @PutMapping("/makeBookingOpen/{id}")

@@ -7,27 +7,26 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
+import org.ticketbooking.common.model.AvailabilityService;
 import org.ticketbooking.common.model.BookingRequest;
 import org.ticketbooking.common.model.BookingResponse;
 import org.ticketbooking.common.model.CustomUserDetails;
 import org.ticketbooking.common.model.Event;
 import org.ticketbooking.common.model.Ticket;
 import org.ticketbooking.common.model.User;
-import org.ticketbooking.common.model.Utils;
 import org.ticketbooking.common.repository.EventRepository;
 import org.ticketbooking.common.repository.TicketRepository;
 
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class BookingService {
 
     @Autowired
@@ -43,7 +42,7 @@ public class BookingService {
     RedisCacheManager cache;
 
     @Autowired
-    Utils utils;
+    AvailabilityService availabilityService;
 
     public User getAuthenticatedUser() throws CommonException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -57,15 +56,16 @@ public class BookingService {
         String bookingRef = UUID.randomUUID().toString();
         User user = getAuthenticatedUser();
 
-        String eventKey = "event:" + request.getEventId() + ":availability";
-        int availableSeats = utils.getAvailableSeats(request.getEventId());
+        String availablityEventKey = "event:" + request.getEventId() + ":availability";
+        String blockedEventKey = "event:" + request.getEventId() + ":blocked";
+        int requestedTickets = request.getQuantity();
 
-        if (availableSeats < request.getQuantity()) {
+        Long blockedTickets = availabilityService.blockTemporaryTickets(request.getEventId(), availablityEventKey,
+                blockedEventKey, requestedTickets);
+
+        if (blockedTickets == -1) {
             throw new CommonException("Not enough seats available");
         }
-
-        // Temporarily reserve tickets in Redis
-        cache.decrement(eventKey, request.getQuantity());
 
         // Send booking request to Kafka
         request.setBookingRef(bookingRef);
@@ -77,33 +77,44 @@ public class BookingService {
                 null, request.getQuantity(), bookingRef);
     }
 
-    
-    @Retryable(
-        value = { OptimisticLockingFailureException.class }, // Specify the exception to retry on
-        maxAttempts = 3, // Max number of retries
-        backoff = @Backoff(delay = 500, multiplier = 2) // Exponential backoff: delay starts at 1s, multiplies by 2 each retry
-    )
-    @Transactional
     public BookingResponse bookTicket(BookingRequest request) throws CommonException {
-        Event event = validateEvent(request.getEventId(), request.getQuantity());
+        Long eventId = request.getEventId();
+        String availablityEventKey = "event:" + eventId + ":availability";
+        String blockedEventKey = "event:" + request.getEventId() + ":blocked";
 
-        Ticket ticket = createTicket(event, request.getQuantity(), request.getUser(), request.getBookingRef());
+        Event event = availabilityService.getEventFromRedis(eventId);
+        if (!validateEvent(event)) {
+            throw new CommonException("Booking is not allowed for this event yet or it has already started");
+        }
 
-        // Save the booking details
-        eventRepository.save(event);
-        Ticket savedTicket = ticketRepository.save(ticket);
+        boolean bookingStatus = availabilityService.finalizeBooking(eventId, availablityEventKey,blockedEventKey,
+                request.getQuantity());
+        if (!bookingStatus) {
+            throw new CommonException("Failed to finalize booking. Seats might have expired or been reclaimed.");
+        }
 
-        return new BookingResponse(savedTicket.getId(), savedTicket.getUser().getId(), savedTicket.getId(),
-                savedTicket.getStatus(), savedTicket.getPrice(), savedTicket.getQuantity(),
-                savedTicket.getBookingRef());
+        BigDecimal totalPrice = new BigDecimal(event.getPrice()).multiply(new BigDecimal(request.getQuantity()));
+
+        Ticket ticket = createTicket(request.getEventId(), request.getQuantity(), request.getUser(),
+                request.getBookingRef(), totalPrice);
+        availabilityService.pushTicketToDatabase(ticket);
+
+        availabilityService.syncAvailabilityToDatabase(eventId);
+        return new BookingResponse(null, request.getUser().getId(), eventId, "CONFIRMED", null, request.getQuantity(),
+                request.getBookingRef());
     }
 
     public void redirectToPayment(BookingRequest request) throws CommonException {
         // Redirect user to payment
         PaymentService paymentService = new PaymentService();
-        boolean paymentSuccess = paymentService.processPayment(request.getBookingRef(), new BigDecimal(request.getQuantity()));// TODO::change to amount
+        // BigDecimal amountToPay = redisTemplate.opsForValue().get("event:" +
+        // request.getEventId() + ":price")
+        // .multiply(new BigDecimal(request.getQuantity())); // TODO::
 
-        handlePayment(request.getBookingRef(),paymentSuccess);
+        boolean paymentSuccess = paymentService.processPayment(request.getBookingRef(),
+                new BigDecimal(request.getQuantity()));// TODO::change to amount
+
+        handlePayment(request.getBookingRef(), paymentSuccess);
     }
 
     public void handlePayment(String bookingRef, boolean paymentSuccess) throws CommonException {
@@ -118,7 +129,7 @@ public class BookingService {
         // Update ticket status to CONFIRMED
         Ticket ticket = ticketRepository.findByBookingRef(bookingRef)
                 .orElseThrow(() -> new CommonException("Booking not found"));
-                
+
         ticket.setStatus("CONFIRMED");
         ticketRepository.save(ticket);
         notifyUser(ticket.getUser().getId(), "Your booking is confirmed.");
@@ -127,8 +138,8 @@ public class BookingService {
     public void cancelTemporaryBooking(String bookingRef) throws CommonException {
         Ticket ticket = ticketRepository.findByBookingRef(bookingRef)
                 .orElseThrow(() -> new CommonException("Booking not found"));
-        
-        String eventKey = "event:" + ticket.getEvent().getId() + ":availability";
+
+        String eventKey = "event:" + ticket.getEventId() + ":availability";
         cache.increment(eventKey, ticket.getQuantity());
 
         ticket.setStatus("CANCELLED");
@@ -137,35 +148,26 @@ public class BookingService {
         notifyUser(ticket.getUser().getId(), "Your payment failed, booking cancelled.");
     }
 
-    private Ticket createTicket(Event event,Integer ticketQuantity, User user,String bookingRef) throws CommonException {
+    private Ticket createTicket(Long eventId, Integer ticketQuantity, User user, String bookingRef,
+            BigDecimal totalPrice) throws CommonException {
         Ticket ticket = new Ticket();
         ticket.setUser(user);
-        ticket.setEvent(event);
-        ticket.setPrice(new BigDecimal(event.getPrice()).multiply(new BigDecimal(ticketQuantity)));
+        ticket.setEventId(eventId);
+        ticket.setPrice(totalPrice);
         ticket.setQuantity(ticketQuantity);
         ticket.setBookingRef(bookingRef);
-        ticket.setStatus("PENDING"); //CONFIRMED
+        ticket.setStatus("PENDING"); // CONFIRMED
         return ticket;
     }
 
-    private Event validateEvent(Long eventId,Integer ticketQuantity) throws CommonException {
-        // Validate if event exists
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new CommonException("Event not found"));
-
+    private boolean validateEvent(Event event) throws CommonException {
         // Check if booking is allowed for this event
-        if (!event.isBookingOpen() || event.getStartTime().isBefore(LocalDateTime.now())) {
-            throw new CommonException("Booking is not allowed for this event yet or it has already started");
+        if (event.isBookingOpen() || LocalDateTime.now().isBefore(event.getStartTime())) {
+            return true;
         }
 
-        // Check for seat availability
-        if (event.getAvailableSeats() < ticketQuantity) {
-            throw new CommonException("Not enough seats available");
-        }
-
-        // Decrease available seats
-        event.setAvailableSeats(event.getAvailableSeats() - ticketQuantity);
-        return event;
+        log.error("Booking is not allowed for this event yet or it has already started");
+        return false;
     }
 
     @Transactional
@@ -179,27 +181,25 @@ public class BookingService {
             throw new CommonException("Ticket cannot be cancelled");
         }
 
-        // Update ticket status to "CANCELLED"
-        ticket.setStatus("CANCELLED");
-        ticketRepository.save(ticket);
-
-        Event event = ticket.getEvent();
+        Event event = availabilityService.getEventFromRedis(ticket.getEventId());// eventRepository.findById(ticket.getEventId()).get();
         String eventKey = "event:" + event.getId() + ":availability";
 
         // Increment available seats in Redis
         cache.increment(eventKey, ticket.getQuantity());
 
-        // Increase the available seats in the event
-        event.setAvailableSeats(event.getAvailableSeats() + ticket.getQuantity()); // Assuming 1 ticket cancellation per request
-        eventRepository.save(event);
+        // Update ticket status to "CANCELLED"
+        ticket.setStatus("CANCELLED");
+        ticketRepository.save(ticket);
+
+        availabilityService.syncAvailabilityToDatabase(ticket.getEventId());
     }
 
     public List<BookingResponse> getUserBookings() throws CommonException {
         Long userId = getAuthenticatedUser().getId();
         List<Ticket> tickets = ticketRepository.findByUserId(userId);
         return tickets.stream()
-                .map(ticket -> new BookingResponse(ticket.getId(), ticket.getUser().getId(), ticket.getEvent().getId(),
-                        ticket.getStatus(), ticket.getPrice(), ticket.getQuantity(),ticket.getBookingRef()))
+                .map(ticket -> new BookingResponse(ticket.getId(), ticket.getUser().getId(), ticket.getEventId(),
+                        ticket.getStatus(), ticket.getPrice(), ticket.getQuantity(), ticket.getBookingRef()))
                 .collect(Collectors.toList());
     }
 
