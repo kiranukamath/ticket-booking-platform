@@ -132,7 +132,7 @@ public class BookingService {
 
         ticket.setStatus("CONFIRMED");
         ticketRepository.save(ticket);
-        notifyUser(ticket.getUser().getId(), "Your booking is confirmed.");
+        notifyUser(ticket.getUser().getId(), "Your booking " + bookingRef + " is confirmed.");
     }
 
     public void cancelTemporaryBooking(String bookingRef) throws CommonException {

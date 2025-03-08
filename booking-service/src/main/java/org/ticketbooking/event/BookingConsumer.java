@@ -1,10 +1,11 @@
 package org.ticketbooking.event;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.ticketbooking.common.exception.CommonException;
 import org.ticketbooking.common.model.BookingRequest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -16,27 +17,33 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class BookingConsumer {
 
-    private final ThreadPoolTaskExecutor executorService;
+    private final ExecutorService executorService;
     private final Semaphore semaphore;
-    private BookingService bookingService;
+    private final BookingService bookingService;
+    private static final int MAX_CONCURRENT_REQUESTS = 10;
 
-    public BookingConsumer(ThreadPoolTaskExecutor kafkaExecutor, BookingService bookingService){
+    public BookingConsumer(ExecutorService kafkaExecutor, BookingService bookingService){
         this.executorService = kafkaExecutor;
-        this.semaphore = new Semaphore(executorService.getMaxPoolSize());
+        this.semaphore = new Semaphore(MAX_CONCURRENT_REQUESTS);
         this.bookingService = bookingService;
     }
 
     @KafkaListener(topics = "booking-requests", groupId = "booking-group", concurrency = "1")
     public void consumeBookingRequest(String message) {
+        log.debug("Start consumeBookingRequest {}",message);
         try {
             semaphore.acquire();
             executorService.submit(() -> {
-                processMessage(message);
-                semaphore.release();
+                try {
+                    processMessage(message);
+                } finally {
+                    semaphore.release();
+                }
             });
-        } catch (Exception e) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        log.debug("End consumeBookingRequest");
     }
 
     private void processMessage(String message) {
@@ -53,7 +60,7 @@ public class BookingConsumer {
                 bookingService.bookTicket(request);
                 // Redirect to mock payment service
                 bookingService.redirectToPayment(request);
-            } catch (Exception e) {
+            } catch (CommonException e) {
                 log.error("ERROR",e);
                 bookingService.handleOverbooking(request);
             }
