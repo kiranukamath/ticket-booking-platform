@@ -95,7 +95,7 @@ public class RedisCacheManager {
             local availability = tonumber(redis.call('GET',KEYS[1]))
             local blocked = tonumber(redis.call('GET',KEYS[2])) or 0
             local requested = tonumber(ARGV[1])
-            local blockLimit = math.floor(0.95 * blocked)
+            local blockLimit = math.floor(0.90 * blocked)
 
             if not availability then
                 return -2;
