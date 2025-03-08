@@ -1,15 +1,15 @@
 {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
     "configurations": [
         {
             "type": "java",
-            "name": "Spring Boot-TicketBookingPlatformApplication<ticket-booking-platform>",
+            "name": "TicketBookingPlatformApplication",
             "request": "launch",
-            "cwd": "${workspaceFolder}",
             "mainClass": "org.ticketbooking.TicketBookingPlatformApplication",
-            "projectName": "ticket-booking-platform",
-            "args": "",
-            "envFile": "${workspaceFolder}/.env",
-            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=50516 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=ticket-booking-platform"
+            "projectName": "ticket-booking-platform"
         }
     ]
 }
