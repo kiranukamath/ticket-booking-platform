@@ -205,7 +205,7 @@ public class BookingService {
 
     public void notifyUser(Long userId, String message) {
         // Implement notification logic (e.g., email, SMS)
-        System.out.println("Notifying user " + userId + ": " + message);
+        log.info("Notifying user " + userId + ": " + message);
     }
 
     public void handleOverbooking(BookingRequest request) {
