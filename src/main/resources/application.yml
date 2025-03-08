@@ -43,6 +43,14 @@ logging:
     org.springframework.web: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql: TRACE
+  
+  file:
+    name: logs/app.log # Define the log file location
+  logback:
+    rollingpolicy:
+      max-file-size: 1MB   # Maximum log file size before rolling
+      max-history: 5        # Retain logs for 5 days
+      total-size-cap: 10MB
 
 # Security settings (e.g., JWT, etc.)
 security:
