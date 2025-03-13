@@ -22,7 +22,7 @@ public class KafkaThreadPoolConfig {
 
     @Bean
     public ExecutorService kafkaExecutor() {
-        return Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("KafkaProcessor-", 0).factory());
+        return Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("KafkaConsumer-", 0).factory());
     }
 
 }

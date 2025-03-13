@@ -1,6 +1,7 @@
 package org.ticketbooking.event;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -60,10 +61,10 @@ public class EventService {
             event.setLocation((String) requestBody.get("location"));
         }
         if(requestBody.containsKey("startTime")) {
-            event.setStartTime((LocalDateTime) requestBody.get("startTime"));
+            event.setStartTime(LocalDateTime.parse(String.valueOf(requestBody.get("startTime")), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         }
         if(requestBody.containsKey("endTime")) {
-            event.setEndTime((LocalDateTime) requestBody.get("endTime"));
+            event.setEndTime(LocalDateTime.parse(String.valueOf(requestBody.get("endTime")), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         }
         if(requestBody.containsKey("capacity")) {
             event.setCapacity((Integer) requestBody.get("capacity"));

@@ -73,11 +73,12 @@ public class BookingService {
 
         bookingProducer.sendBookingRequest("booking-requests", request);
 
-        return new BookingResponse(null, null, request.getEventId(), "PENDING",
+        return new BookingResponse(null, request.getEventId(), "PENDING",
                 null, request.getQuantity(), bookingRef);
     }
 
     public BookingResponse bookTicket(BookingRequest request) throws CommonException {
+        String bookingRef = request.getBookingRef();
         Long eventId = request.getEventId();
         String availablityEventKey = "event:" + eventId + ":availability";
         String blockedEventKey = "event:" + request.getEventId() + ":blocked";
@@ -95,12 +96,13 @@ public class BookingService {
 
         BigDecimal totalPrice = new BigDecimal(event.getPrice()).multiply(new BigDecimal(request.getQuantity()));
 
+        
         Ticket ticket = createTicket(request.getEventId(), request.getQuantity(), request.getUser(),
-                request.getBookingRef(), totalPrice);
+                bookingRef, totalPrice);
         availabilityService.pushTicketToDatabase(ticket);
 
         availabilityService.syncAvailabilityToDatabase(eventId);
-        return new BookingResponse(null, request.getUser().getId(), eventId, "CONFIRMED", null, request.getQuantity(),
+        return new BookingResponse(request.getUser().getId(), eventId, "CONFIRMED", null, request.getQuantity(),
                 request.getBookingRef());
     }
 
@@ -162,7 +164,7 @@ public class BookingService {
 
     private boolean validateEvent(Event event) throws CommonException {
         // Check if booking is allowed for this event
-        if (event.isBookingOpen() || LocalDateTime.now().isBefore(event.getStartTime())) {
+        if (event.isBookingOpen() && LocalDateTime.now().isBefore(event.getStartTime())) {
             return true;
         }
 
@@ -198,7 +200,7 @@ public class BookingService {
         Long userId = getAuthenticatedUser().getId();
         List<Ticket> tickets = ticketRepository.findByUserId(userId);
         return tickets.stream()
-                .map(ticket -> new BookingResponse(ticket.getId(), ticket.getUser().getId(), ticket.getEventId(),
+                .map(ticket -> new BookingResponse(ticket.getUser().getId(), ticket.getEventId(),
                         ticket.getStatus(), ticket.getPrice(), ticket.getQuantity(), ticket.getBookingRef()))
                 .collect(Collectors.toList());
     }
