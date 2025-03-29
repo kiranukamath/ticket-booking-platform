@@ -29,7 +29,7 @@ public class BookingController {
     }
 
     @DeleteMapping("cancel/{ticketId}")
-    public ResponseEntity<?> cancelTicket(@PathVariable Long ticketId) throws CommonException {
+    public ResponseEntity<?> cancelTicket(@PathVariable String ticketId) throws CommonException {
         bookingService.cancelTicket(ticketId);
         return ResponseEntity.ok("Ticket cancelled successfully");
     }

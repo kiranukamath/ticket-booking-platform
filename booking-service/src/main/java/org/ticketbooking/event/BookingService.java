@@ -173,7 +173,7 @@ public class BookingService {
     }
 
     @Transactional
-    public void cancelTicket(Long ticketId) throws CommonException {
+    public void cancelTicket(String ticketId) throws CommonException {
         // Fetch the ticket by its ID
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new CommonException("Ticket not found"));

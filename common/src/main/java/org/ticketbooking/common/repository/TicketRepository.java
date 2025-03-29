@@ -8,7 +8,7 @@ import org.springframework.stereotype.Repository;
 import org.ticketbooking.common.model.Ticket;
 
 @Repository
-public interface TicketRepository extends JpaRepository<Ticket, Long> {
+public interface TicketRepository extends JpaRepository<Ticket, String> {
     List<Ticket> findByUserId(Long userId);
     List<Ticket> findByEventId(Long eventId);
     
