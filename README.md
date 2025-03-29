@@ -47,9 +47,21 @@ The system uses a PostgreSQL database, with the following key entities:
 1. User: Represents a registered user in the system.
 Fields: id, username, email, password, roles.
 2. Event: Represents an event available for booking.
-Fields: id, name, description, price, available_seats, capacity, start_time, end_time, location, version (for optimistic locking).
-3. Ticket: Represents a booking for a specific event.
+Fields: id, name, description, price, available_seats, capacity, start_time, end_time, location, version (for optimistic locking),booking_open.
+4. Ticket: Represents a booking for a specific event.
 Fields: id, user_id, event_id, quantity, booking_ref, booking_time, status, price.
+
+### Redis Key Structure
+1. event:{event_id}:availability (Seats Available for Booking)
+- This represents the actual available seats that can be booked.
+- It gets decremented only when a booking is confirmed (finalized in Kafka).
+- Helps in ensuring that once a ticket is booked, it is permanently deducted.
+2. event:{event_id}:blocked (Temporarily Blocked Seats)
+- Tracks seats temporarily reserved for users while they proceed with payment.
+- It ensures that multiple users don’t book the same seat simultaneously.
+- This value expires early (e.g., 5 minutes) to release unconfirmed seats back to availability.
+- Helps manage flash sales or sudden spikes in traffic. blocked ensures only a certain number of users hold reservations at a time. When expired, new users can get the chance to book
+3. event:{event_id}  → This ensures fast read operations and validation for events.
 
 ### Flow of a Ticket Booking
 1. A user logs in and receives a JWT token.
