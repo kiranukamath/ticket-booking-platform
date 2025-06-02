@@ -2,18 +2,20 @@ package org.ticketbooking.event;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
-import org.ticketbooking.common.model.AvailabilityService;
 import org.ticketbooking.common.model.Event;
+import org.ticketbooking.common.model.EventHelper;
+import org.ticketbooking.common.model.Seat;
 import org.ticketbooking.common.repository.EventRepository;
+import org.ticketbooking.common.repository.SeatRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,19 +25,31 @@ public class EventService {
 
     @Autowired
     private EventRepository eventRepository;
+    @Autowired
+    private SeatRepository seatRepository;
 
     @Autowired
     RedisCacheManager cache;
 
     @Autowired
-    AvailabilityService availabilityService;
+    private EventHelper eventHelper;
 
     public Event createEvent(Event event) {
         Event savedEvent = eventRepository.save(event);
 
-        String eventKey = "event:" + savedEvent.getId() + ":availability";
-        cache.setWithTTL(eventKey, String.valueOf(savedEvent.getAvailableSeats()), availabilityService.calculateTTLForEvent(savedEvent.getEndTime()), TimeUnit.SECONDS);
-        availabilityService.saveEventToCache(savedEvent);
+        eventHelper.saveEventToCache(savedEvent);
+        
+        int totalSeats = event.getTotalSeats();
+        List<Seat> seats = new ArrayList<>();
+        for (int i = 1; i <= totalSeats; i++) {
+            Seat seat = new Seat();
+            seat.setSeatId("A"+i);
+            seat.setStatus("AVAILABLE");
+            seat.setEvent(event);
+            seats.add(seat);
+        }
+
+        seatRepository.saveAll(seats);
         return savedEvent;
     }
 
@@ -51,6 +65,10 @@ public class EventService {
     public Event updateEvent(Long id, Map<String,Object> requestBody) throws CommonException {
         Event event =  eventRepository.findById(id).orElseThrow(() -> new CommonException("Event not found",HttpStatus.NOT_FOUND));
         
+        if (requestBody.containsKey("totalSeats")) {
+            throw new CommonException("Cannot update seat count after event creation", HttpStatus.BAD_REQUEST);
+        }
+
         if(requestBody.containsKey("name")) {
             event.setName((String) requestBody.get("name"));
         }
@@ -67,26 +85,16 @@ public class EventService {
             event.setEndTime(LocalDateTime.parse(String.valueOf(requestBody.get("endTime")), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         }
         if(requestBody.containsKey("capacity")) {
-            event.setCapacity((Integer) requestBody.get("capacity"));
+            event.setTotalSeats((Integer) requestBody.get("capacity"));
         }
         
         if(requestBody.containsKey("price")) {
             event.setPrice((Double) requestBody.get("price"));
         }
 
-        if(requestBody.containsKey("availableSeats")){
-            event.setAvailableSeats((Integer) requestBody.get("availableSeats"));
-        }
-
         Event savedEvent = eventRepository.save(event);
-        availabilityService.saveEventToCache(savedEvent);
+        eventHelper.saveEventToCache(savedEvent);
         
-        if (requestBody.containsKey("availableSeats")) {
-            // Update available seats in Redis - actual key
-            String eventKey = "event:" + savedEvent.getId() + ":availability";
-            cache.setWithTTL(eventKey, String.valueOf(savedEvent.getAvailableSeats()),
-                    availabilityService.calculateTTLForEvent(savedEvent.getEndTime()), TimeUnit.SECONDS); // availability
-        }
         return savedEvent;
     }
 
@@ -94,7 +102,7 @@ public class EventService {
         Event event = eventRepository.findById(id).orElseThrow(() -> new CommonException("Event not found",HttpStatus.NOT_FOUND));
         event.setBookingOpen(true);
         Event savedEvent = eventRepository.save(event);
-        availabilityService.saveEventToCache(savedEvent);
+        eventHelper.saveEventToCache(savedEvent);
         return savedEvent;
     }
 
@@ -103,7 +111,5 @@ public class EventService {
         eventRepository.deleteById(id);
         cache.delete(eventKey);
     }
-
-    
     
 }

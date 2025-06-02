@@ -11,6 +11,6 @@ public class PaymentService {
 
     public boolean processPayment(String bookingRef, BigDecimal amount) {
         // Mock payment logic, simulate success or failure
-        return random.nextDouble() < 0.8;
+        return random.nextDouble() < 1.0;
     }
 }

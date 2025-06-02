@@ -26,8 +26,7 @@ public class Event {
     private String location;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
-    private int capacity;
-    private int availableSeats;
+    private int totalSeats;
     private double price;
     private boolean bookingOpen;
 

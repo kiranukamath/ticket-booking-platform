@@ -20,7 +20,7 @@ import org.ticketbooking.common.model.BookingResponse;
 public class BookingController {
 
     @Autowired
-    private BookingService bookingService;
+    private BookingServiceProducer bookingService;
 
     @PostMapping
     public ResponseEntity<?> bookTicket(@RequestBody BookingRequest bookingRequest) throws CommonException {

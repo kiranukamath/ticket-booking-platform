@@ -1,12 +1,9 @@
 package org.ticketbooking.event;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
-
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.exception.CommonException;
-import org.ticketbooking.common.model.BookingRequest;
+import org.ticketbooking.common.model.BookingMessage;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,53 +14,39 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class BookingConsumer {
 
-    private final ExecutorService executorService;
-    private final Semaphore semaphore;
-    private final BookingService bookingService;
-    private static final int MAX_CONCURRENT_REQUESTS = 10;
+    private final BookingServiceConsumer bookingService;
 
-    public BookingConsumer(ExecutorService kafkaExecutor, BookingService bookingService){
-        this.executorService = kafkaExecutor;
-        this.semaphore = new Semaphore(MAX_CONCURRENT_REQUESTS);
+    public BookingConsumer(BookingServiceConsumer bookingService){
         this.bookingService = bookingService;
     }
 
-    @KafkaListener(topics = "booking-requests", groupId = "booking-group", concurrency = "1")
-    public void consumeBookingRequest(String message) {
-        log.debug("Start consumeBookingRequest {}",message);
+    @KafkaListener(topics = "ticket.booked", groupId = "booking-group1", concurrency = "1")
+    public void consumeBooking(String message) {
+        BookingMessage bookingMessage = null;
         try {
-            semaphore.acquire();
-            executorService.submit(() -> {
-                try {
-                    processMessage(message);
-                } finally {
-                    semaphore.release();
-                }
-            });
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        log.debug("End consumeBookingRequest");
-    }
-
-    private void processMessage(String message) {
-        BookingRequest request = null;
-        try {
-            request = new ObjectMapper().readValue(message, BookingRequest.class);
+            bookingMessage = new ObjectMapper().readValue(message, BookingMessage.class);
         } catch (JsonProcessingException ex) {
             // throw new CommonException("Booking Request not parsable");
             log.error("ERROR" + message, ex);
         }
 
-        if (request != null) {
-            try {
-                bookingService.bookTicket(request);
-                // Redirect to mock payment service
-                bookingService.redirectToPayment(request);
-            } catch (CommonException e) {
-                log.error("ERROR",e);
-                bookingService.handleOverbooking(request);
-            }
+        try {
+            bookingService.bookTicket(bookingMessage);
+            // Redirect to mock payment service
+            bookingService.redirectToPayment(bookingMessage);
+        } catch (CommonException e) {
+            log.error("ERROR", e);
+            bookingService.cancelTemporaryBooking(bookingMessage);
         }
     }
+
+    @KafkaListener(topics = "ticket.cancelled", groupId = "booking-group1", concurrency = "1")
+    public void consumeCancellation(String message) {
+        try {
+            bookingService.cancelTicket(message);
+        } catch (CommonException e) {
+            log.error("ERROR", e);
+        }
+    }
+    
 }

@@ -15,6 +15,8 @@ import lombok.Data;
 @Table(name = "ticket")
 @Data
 public class Ticket {
+    @Id
+    private String bookingRef;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
@@ -23,15 +25,9 @@ public class Ticket {
     @Column(nullable = false)
     private Long eventId;
 
-    private LocalDateTime bookingTime = LocalDateTime.now();
+    private String bookingTime = LocalDateTime.now().toString();
 
     private String status = "PENDING"; // PENDING, CONFIRMED, CANCELLED
 
     private BigDecimal price;
-
-    @Column(nullable = false)
-    private int quantity;
-
-    @Id
-    private String bookingRef;
 }
