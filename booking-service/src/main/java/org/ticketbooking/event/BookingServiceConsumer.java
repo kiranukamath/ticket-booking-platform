@@ -11,10 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
+import org.ticketbooking.common.helper.EventHelper;
 import org.ticketbooking.common.model.BookingMessage;
 import org.ticketbooking.common.model.BookingResponse;
 import org.ticketbooking.common.model.Event;
-import org.ticketbooking.common.model.EventHelper;
 import org.ticketbooking.common.model.Seat;
 import org.ticketbooking.common.model.Ticket;
 import org.ticketbooking.common.model.User;
@@ -38,7 +38,8 @@ public class BookingServiceConsumer {
     SeatRepository seatRepository;
 
     public BookingResponse bookTicket(BookingMessage bookingMessage) throws CommonException {
-        Ticket ticket = createTicket(bookingMessage.getEventId(), bookingMessage.getUser(), bookingMessage.getBookingRef(),
+        Ticket ticket = createTicket(bookingMessage.getEventId(), bookingMessage.getUser(),
+                bookingMessage.getBookingRef(),
                 bookingMessage.getPrice());
         String bookingRef = ticket.getBookingRef();
         Long eventId = ticket.getEventId();
@@ -49,14 +50,17 @@ public class BookingServiceConsumer {
                 bookingMessage.getEventId(),
                 bookingMessage.getSeatIds());
 
-        for(Seat seat : seats) {
-            if(seat.getStatus().equals("BOOKED")) {
-                throw new CommonException("Seat " + seat.getSeatId() + " is not available for booking.");
+        for (Seat seat : seats) {
+            if (seat.getStatus().equals("BOOKED")) {
+                throw new CommonException("Seats are not available for booking.");
             }
         }
 
         ticket.setStatus("PENDING");
         ticketRepository.save(ticket);
+        notifyUser(eventId, seats.stream()
+                .map(Seat::getSeatId)
+                .collect(Collectors.toSet()), "PENDING");
         return new BookingResponse(ticket.getUser().getId(), eventId, "PENDING", ticket.getPrice(),
                 bookingMessage.getSeatIds(), bookingRef);
     }
@@ -78,7 +82,7 @@ public class BookingServiceConsumer {
         List<Seat> bookedSeats = seatRepository.findByBookingRef(bookingRef);
         if (bookedSeats.isEmpty()) {
             throw new CommonException("No seats found for this ticket");
-        } 
+        }
 
         for (Seat seat : bookedSeats) {
             seat.setStatus("AVAILABLE");
@@ -87,13 +91,17 @@ public class BookingServiceConsumer {
         seatRepository.saveAll(bookedSeats);
 
         Set<String> seatIds = bookedSeats.stream()
-                        .map(Seat::getSeatId)
-                        .collect(Collectors.toSet());
+                .map(Seat::getSeatId)
+                .collect(Collectors.toSet());
 
-        cache.unlockSeats(eventId, seatIds , bookingRef);
+        cache.unlockSeats(eventId, seatIds, bookingRef);
         // Update ticket status to "CANCELLED"
         ticket.setStatus("CANCELLED");
         ticketRepository.save(ticket);
+        notifyUser(ticket.getUser().getId(), "Your booking " + ticketId + " is Cancelled.");
+        notifyUser(eventId, bookedSeats.stream()
+                .map(Seat::getSeatId)
+                .collect(Collectors.toSet()), "CANCELLED");
     }
 
     public void redirectToPayment(BookingMessage request) throws CommonException {
@@ -114,6 +122,7 @@ public class BookingServiceConsumer {
         }
     }
 
+    @Transactional
     public void confirmBooking(BookingMessage bookingMessage) throws CommonException {
         // Update ticket status to CONFIRMED
         Ticket ticket = ticketRepository.findByBookingRef(bookingMessage.getBookingRef())
@@ -132,12 +141,16 @@ public class BookingServiceConsumer {
 
         Event event = eventHelper.getEventFromRedis(bookingMessage.getEventId());
         long ttl = eventHelper.calculateTTLForEvent(event.getEndTime()) + 3600;
-        cache.reserveSeats(ticket.getEventId(), bookingMessage.getSeatIds(),bookingMessage.getBookingRef(),Duration.ofSeconds(ttl));
+        cache.reserveSeats(ticket.getEventId(), bookingMessage.getSeatIds(), bookingMessage.getBookingRef(),
+                Duration.ofSeconds(ttl));
 
         seatRepository.saveAll(seats);
         ticket.setStatus("CONFIRMED");
         ticketRepository.save(ticket);
         notifyUser(ticket.getUser().getId(), "Your booking " + bookingMessage.getBookingRef() + " is confirmed.");
+        notifyUser(event.getId(), seats.stream()
+                .map(Seat::getSeatId)
+                .collect(Collectors.toSet()), "CONFIRMED");
     }
 
     public void cancelTemporaryBooking(BookingMessage message) {
@@ -155,6 +168,7 @@ public class BookingServiceConsumer {
             ticketRepository.save(ticket);
 
             notifyUser(ticket.getUser().getId(), "Your payment failed, booking cancelled.");
+            notifyUser(eventId, seatIds, "CANCELLED");
         } else {
             log.error("Booking not found in DB");
         }
@@ -167,12 +181,17 @@ public class BookingServiceConsumer {
         ticket.setEventId(eventId);
         ticket.setPrice(totalPrice);
         ticket.setBookingRef(bookingRef);
-        ticket.setStatus("PENDING"); // CONFIRMED
+        ticket.setStatus("PENDING");
         return ticket;
     }
 
     public void notifyUser(Long userId, String message) {
-        // Implement notification logic (e.g., email, SMS)
+        // Push message to kafka and then consume with service that Implement
+        // notification logic (e.g., email, SMS)
         log.info("Notifying user " + userId + ": " + message);
+    }
+
+    private void notifyUser(Long eventId, Set<String> seats, String status) {
+        cache.publishSeatUpdate(eventId, seats, status);
     }
 }

@@ -2,10 +2,16 @@
 
 ## Overview
 
-This document outlines the design and architecture of the Ticket Booking System, built using Java 21 with Spring Boot. The system focuses on handling high concurrency, ensuring data consistency, and implementing features like authentication and authorization. 
-It is designed to handle complex ticket booking rules, such as prioritizing users based on arrival, ticket quantity, and managing concurrency in the booking process.
+This document outlines the design and architecture of the Ticket Booking System, built using Java 21 with Spring Boot. The system focuses on handling high concurrency, ensuring data consistency, and implementing features like authentication and authorization.
 
-The system also includes key features like JWT-based authentication, event-driven architecture, and transactional management. In this phase, we have covered critical areas such as concurrency management, optimistic locking, transaction management, and retry mechanisms.
+The system also includes key features like JWT-based authentication, event-driven architecture, and transactional management.
+- **Auth Service**: Handles user authentication and JWT token management.
+- **Event Service**: Manages event and seat metadata.
+- **Booking Service**: Handles booking, cancellation, and booking queries. Same service contains code for both pushing events to kafka, and consuming events from kafka. Can be deployed separately to scale.
+- **Kafka**: Event bus for asynchronous, decoupled communication.
+- **Redis**: Fast cache and atomic queue/lock manager.
+- **PostgreSQL**: Source of truth for all persistent data.
+
 
 ## Key Features Implemented
 
@@ -17,26 +23,29 @@ JWT secret key is stored securely in application.yml to sign and validate tokens
 JWTFilter is used to intercept requests and validate tokens.
 ### 2. Ticket Booking Flow
 The core functionality of the system involves booking tickets for events.
-The system handles concurrency using Redis atomic keys and reliability with optimistic locking. The version field is used to check for updates to the ticket count and prevent conflicts.
+The system handles concurrency using Redis atomic keys and reliability with optimistic locking.
 Atomicity of the booking process is ensured, meaning either all operations within the booking process succeed, or none of them do.
 ### 3. Event Handling and Ticket Availability
-Event Service is responsible for managing events, including their details and available seats.
-Each event has a version field used for optimistic locking, ensuring that the state of the event does not get changed concurrently by multiple transactions.
-The Ticket Service uses this version field to lock the event record, ensuring that the ticket booking process is transactional and consistent.
+Event Service is responsible for managing events, including their details and seats.
+Each event has a version field used for optimistic locking, ensuring that the state of the event does not get changed concurrently by multiple updates.
 ### 4. Concurrency and Locking Mechanisms
-Concurrency Handling is managed and also handled for scenarios where tickets are booked at the first minute. Have Event driven flow where the Validation and accepting booking is done based on Redis atomic key and actual booking is done asynchronously by service using kafka consumers.
-Retry Mechanism: An exponential backoff strategy was implemented using Spring's @Retryable to handle retries for optimistic locking failures (like OptimisticLockingFailureException). The backoff delay starts at 1 second and doubles after each failure, ensuring that the database doesn't get overwhelmed with retries.
+Have Event driven flow where the Validation and accepting booking is done based on Redis atomic key and actual booking is done asynchronously by service using kafka consumers.
 ### 5. Transactional Management
 Spring Transaction Management is used to handle the entire ticket booking process in a single transaction, ensuring atomicity.
 JpaTransactionManager manages the commits and rollbacks to maintain consistency during the booking process.
+### 6, For Real time updates:
+We can use websocket to establish realtime message updates. Enable real-time updates of seat availability to all clients viewing an event page.
+Redis Pub/Sub to broadcast seat status updates across distributed services.
+Spring WebSockets to push updates from server to frontend clients.
+
 
 ## Design Overview
 
 ### Architecture
-The system is built with a monolithic architecture but code is modularized. Can be converted to microservice and ran separatly. The current modules include:
+The system is built with modularized code. Can be converted to microservice and ran separatly. The current modules include:
 1. Auth-Service: Handles user authentication, JWT token generation, and validation.
 2. Event-Service: Manages event details, including ticket availability, pricing, and scheduling.
-3. Booking-Service: Manages ticket bookings, using concurrency mechanisms and transactional management to ensure atomicity.
+3. Booking-Service: Manages ticket bookings, using concurrency mechanisms and transactional management to ensure atomicity. Can be deployed as seperate pods for publisher and consumer.
 4. Payment-Service: Future scope - integrate with Razorpay
 5. Notification-Service: Future scope - Sends email notifications to users upon successful booking.
 
@@ -47,38 +56,25 @@ The system uses a PostgreSQL database, with the following key entities:
 1. User: Represents a registered user in the system.
 Fields: id, username, email, password, roles.
 2. Event: Represents an event available for booking.
-Fields: id, name, description, price, available_seats, capacity, start_time, end_time, location, version (for optimistic locking),booking_open.
+Fields: id, name, description, price, total_seats, start_time, end_time, location, version (for optimistic locking),booking_open.
 4. Ticket: Represents a booking for a specific event.
-Fields: id, user_id, event_id, quantity, booking_ref, booking_time, status, price.
+Fields: booking_ref(id), user_id, event_id, booking_time, status, price.
+5. Seats
+Fields: id, booking_ref,seat_id, status,event_id
 
 ### Redis Key Structure
-1. event:{event_id}:availability (Seats Available for Booking)
-- This represents the actual available seats that can be booked.
-- It gets decremented only when a booking is confirmed (finalized in Kafka).
-- Helps in ensuring that once a ticket is booked, it is permanently deducted.
-2. event:{event_id}:blocked (Temporarily Blocked Seats)
-- Tracks seats temporarily reserved for users while they proceed with payment.
-- It ensures that multiple users don’t book the same seat simultaneously.
-- This value expires early (e.g., 5 minutes) to release unconfirmed seats back to availability.
-- Helps manage flash sales or sudden spikes in traffic. blocked ensures only a certain number of users hold reservations at a time. When expired, new users can get the chance to book
-3. event:{event_id}  → This ensures fast read operations and validation for events.
+1. event:{event_id}  → This ensures fast read operations and validation for events.
+2. event:{eventId}:seat:{seatId}  -> This will help in lock for seats which will help FIFS Booking.
 
 ### Flow of a Ticket Booking
 1. A user logs in and receives a JWT token.
 2. The user sends a booking request for an event. 
-3. Based on available seats from Redis booking request is validated and pushed to kafka.
-4. The Booking Service fetches the event details and attempts to book the requested quantity of tickets.
-5. One more check to see if the event has enough available seats, the booking is processed, and the ticket is reserved.
-6. If there’s a concurrency conflict (e.g., another user booked the same ticket), the system retries the operation using the exponential backoff strategy.
+3. Based on if seats is available from Redis, booking request is validated and pushed to kafka.
+4. The Booking Service fetches the event details and attempts to book the requested seats of tickets.
+5. One more check to see if the event has seats available, the booking is processed, and the ticket is reserved.
+6. If there’s a concurrency conflict (e.g., another user booked the same seat), the system retries the operation using the exponential backoff strategy.
 7. Once the booking is successfully processed, the Payment Service simulates payment processing.
-8. An email notification is sent to the user to confirm the booking.
-
-### Future Enhancements
-
-1. Refresh Token Implementation
-Implementing a refresh token mechanism to allow users to stay logged in without needing to re-enter their credentials. The refresh token will be issued alongside the access token and can be used to obtain a new access token when the current one expires.
-This feature will require the creation of a refresh token endpoint, validation of refresh tokens, and proper handling of refresh token expiration.
-2. An email notification is sent to the user to confirm the booking.
+8. An email notification is sent to the user to confirm the booking. (Current implementation is logging)
 
 ## Setup and Installation
 
@@ -106,5 +102,4 @@ The application will start on port 8007 by default.
 
 ## Conclusion
 
-This system is designed to efficiently handle high-concurrency ticket bookings, ensuring data consistency and correctness. The optimistic locking mechanism, along with retry strategies, ensures that bookings are processed correctly even during high traffic periods. As we continue to build and improve the system, features like refresh tokens and distributed architecture will further enhance scalability and user experience.
-
+This system is designed to efficiently handle high-concurrency ticket bookings, ensuring data consistency and correctness.

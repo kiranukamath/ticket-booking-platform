@@ -1,4 +1,4 @@
-package org.ticketbooking.common.model;
+package org.ticketbooking.common.helper;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
+import org.ticketbooking.common.model.BookingMessage;
+import org.ticketbooking.common.model.Event;
 import org.ticketbooking.common.repository.EventRepository;
 import org.ticketbooking.common.repository.TicketRepository;
 

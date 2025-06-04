@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
+import org.ticketbooking.common.model.SeatUpdateMessage;
 
 @Component
 public class RedisCacheManager {
@@ -75,6 +76,11 @@ public class RedisCacheManager {
             
         }
         return true;
+    }
+
+    public void publishSeatUpdate(Long eventId, Set<String> seatIds, String status) {
+        SeatUpdateMessage message = new SeatUpdateMessage(eventId, seatIds, status);
+        redisTemplate.convertAndSend("seat-updates", message);
     }
 
     public boolean lockSeats(Long eventId, Set<String> seatIds, String bookingRef, Duration ttl) {

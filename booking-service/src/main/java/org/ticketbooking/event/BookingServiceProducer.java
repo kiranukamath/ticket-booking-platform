@@ -14,12 +14,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.ticketbooking.common.cache.RedisCacheManager;
 import org.ticketbooking.common.exception.CommonException;
+import org.ticketbooking.common.helper.EventHelper;
 import org.ticketbooking.common.model.BookingMessage;
 import org.ticketbooking.common.model.BookingRequest;
 import org.ticketbooking.common.model.BookingResponse;
 import org.ticketbooking.common.model.CustomUserDetails;
 import org.ticketbooking.common.model.Event;
-import org.ticketbooking.common.model.EventHelper;
 import org.ticketbooking.common.model.Seat;
 import org.ticketbooking.common.model.Ticket;
 import org.ticketbooking.common.model.User;
@@ -110,37 +110,6 @@ public class BookingServiceProducer {
 
     public void cancelTicket(String ticketId) throws CommonException {
         bookingProducer.publishTicketCancelled(ticketId);
-        // Fetch the ticket by its ID
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new CommonException("Ticket not found"));
-
-        // Check the status of the ticket
-        if (!ticket.getStatus().equals("PENDING") && !ticket.getStatus().equals("CONFIRMED")) {
-            throw new CommonException("Ticket cannot be cancelled");
-        }
-
-        Long eventId = ticket.getEventId();
-        String bookingRef = ticket.getBookingRef();
-
-        List<Seat> bookedSeats = seatRepository.findByBookingRef(bookingRef);
-        if (bookedSeats.isEmpty()) {
-            throw new CommonException("No seats found for this ticket");
-        } 
-
-        for (Seat seat : bookedSeats) {
-            seat.setStatus("AVAILABLE");
-            seat.setBookingRef(null);
-        }
-        seatRepository.saveAll(bookedSeats);
-
-        Set<String> seatIds = bookedSeats.stream()
-                        .map(Seat::getSeatId)
-                        .collect(Collectors.toSet());
-
-        cache.unlockSeats(eventId, seatIds , bookingRef);
-        // Update ticket status to "CANCELLED"
-        ticket.setStatus("CANCELLED");
-        ticketRepository.save(ticket);
     }
 
     public List<BookingResponse> getUserBookings() throws CommonException {
